@@ -1,3 +1,10 @@
+# # Customized
+# files
+.DS_Store
+repo_prompt.md
+
+# directories
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
