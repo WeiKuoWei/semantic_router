@@ -1,5 +1,6 @@
 import numpy as np
 import logging
+import time
 from typing import Dict, List, Any, Callable, Optional
 from semantic_router import Route
 from semantic_router.encoders import OpenAIEncoder
@@ -200,6 +201,7 @@ class MultiLayerRouter:
         best_expert = None
         best_similarity = -1
         
+        start_time = time.time()
         for expert_name, route in self.expert_routes.get(best_group, {}).items():
             similarity = self.cosine_similarity(query_embedding, route.centroid)
             logging.info(f"Expert '{expert_name}' similarity: {similarity:.4f}")
@@ -213,6 +215,8 @@ class MultiLayerRouter:
             return await self.fallback_response(query)
         
         logging.info(f"Selected expert: {best_expert} (similarity: {best_similarity:.4f})")
+        # log info in miliseconds
+        logging.info(f"Time taken for routing: {(time.time() - start_time) * 1000:.2f} ms")
         
         # Check if custom response function is registered
         if best_expert in self.expert_responses:

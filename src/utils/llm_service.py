@@ -1,5 +1,7 @@
 import os
 import asyncio
+import time
+import logging
 from typing import List, Dict, Any
 from openai import AsyncOpenAI
 
@@ -46,12 +48,14 @@ async def generate_response(query: str, context: List[str], expert_name: str = N
         ]
         
         # Call OpenAI API
+        start_time = time.time()
         response = await client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=0.7,
             max_tokens=500,
         )
+        logging.info(f"OpenAI API call took {time.time() - start_time:.2f} seconds")
         
         # Extract answer
         answer = response.choices[0].message.content

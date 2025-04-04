@@ -48,18 +48,6 @@ async def process_samples():
         print(f"Time taken: {time.time() - start_time:.2f} seconds")
 
 
-async def process_query(query):
-    """Process a single query through the semantic router."""
-    # Initialize router
-    router = MultiLayerRouter(use_openai=False)
-    
-    print(f"\nRouting query: '{query}'")
-    start_time = time.time()
-    response = await router.route_query(query)
-    pretty_print_response(response)
-    print(f"Time taken: {time.time() - start_time:.2f} seconds")
-
-
 async def interactive_mode():
     """Run an interactive session where the user can enter queries."""
     # Initialize router
@@ -90,7 +78,8 @@ async def interactive_mode():
             start_time = time.time()
             try:
                 response = await router.route_query(query)
-                print(f"Response: {response['answer']}")
+                # print(f"Response: {response['answer']}")
+                pretty_print_response(response)
                 print(f"Time taken: {time.time() - start_time:.2f} seconds")
             except Exception as e:
                 print(f"Error processing query: {e}")
@@ -98,13 +87,8 @@ async def interactive_mode():
 def pretty_print_response(response):
     print("\n" + "="*80)
     print(" RESPONSE ".center(80, "="))
-    print("="*80 + "\n")
-    
-    # Print the main answer with word wrapping
-    import textwrap
-    answer = response.get('answer', 'No answer provided')
-    wrapped_answer = textwrap.fill(answer, width=80)
-    print(wrapped_answer)
+    print("="*80 + "\n")    
+    print(f"Response: {response['answer']}")
     
     # Print sources info if available
     if 'sources' in response:
