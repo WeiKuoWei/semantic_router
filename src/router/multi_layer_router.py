@@ -1,8 +1,8 @@
 import numpy as np
 import logging
+import re
 import time
 from typing import Dict, List, Any, Callable, Optional
-from semantic_router import Route
 from semantic_router.encoders import OpenAIEncoder
 from sentence_transformers import SentenceTransformer, util
 
@@ -35,17 +35,19 @@ class MultiLayerRouter:
     then to a specific expert within that group.
     """
     
-    def __init__(self, use_openai: bool = False, top_k: int = 3):
+    def __init__(self, use_openai: bool = False, top_k: int = 3, session_manager=None):
         """
         Initialize the MultiLayerRouter.
         
         Args:
             use_openai: Whether to use OpenAI for embeddings (True) or SentenceTransformer (False)
             top_k: Number of documents to retrieve from the vector database
+            session_manager: Optional session manager to maintain conversation history
         """
         self.use_openai = use_openai
         self.top_k = top_k
         self.db_handler = ChromaDBHandler()
+        self.session_manager = session_manager
         
         if use_openai:
             self.encoder = OpenAIEncoder()
@@ -59,6 +61,9 @@ class MultiLayerRouter:
         # Response functions mapping
         self.expert_responses = {}
         self.fallback_response = self._fallback_response
+        
+        # Command for clearing session
+        self.reset_command_pattern = re.compile(r'^(new_session|reset|clear)$', re.IGNORECASE)
     
     def _setup_group_routes(self) -> Dict[str, CentroidRoute]:
         """
@@ -163,21 +168,40 @@ class MultiLayerRouter:
         vec2 = vec2.astype(np.float32)
         return float(util.cos_sim(vec1.reshape(1, -1), vec2.reshape(1, -1))[0][0])
     
-    async def route_query(self, query: str) -> Dict[str, Any]:
+    async def route_query(self, query: str, user_id: str = "default_user") -> Dict[str, Any]:
         """
         Route a query through the two-layer system:
-        1. Find the best expert
-        2. Retrieve relevant documents
-        3. Generate response using LLM
+        1. Check for session reset command
+        2. Find the best expert considering conversation history
+        3. Retrieve relevant documents
+        4. Generate response using LLM with conversation context
         
         Args:
             query: The user query
+            user_id: Identifier for the user (for session tracking)
             
         Returns:
             Response from the selected expert
         """
-        # Get query embedding
-        query_embedding = await self.get_embedding(query)
+        # Check for session reset command
+        if self.reset_command_pattern.match(query.strip()):
+            if self.session_manager:
+                self.session_manager.clear_session(user_id)
+            return {"answer": "Session has been reset. What would you like to ask about?"}
+        
+        # Get conversation context if available
+        conversation_context = ""
+        if self.session_manager:
+            conversation_context = self.session_manager.get_conversation_context(user_id)
+        
+        # Create augmented query with conversation context
+        augmented_query = query
+        if conversation_context:
+            # Add conversation context but give more weight to current query
+            augmented_query = f"{conversation_context} {query} {query}"
+        
+        # Get query embedding for the augmented query
+        query_embedding = await self.get_embedding(augmented_query)
         
         # First-layer routing: find the best group
         best_group = None
@@ -215,26 +239,41 @@ class MultiLayerRouter:
             return await self.fallback_response(query)
         
         logging.info(f"Selected expert: {best_expert} (similarity: {best_similarity:.4f})")
-        # log info in miliseconds
+        # log info in milliseconds
         logging.info(f"Time taken for routing: {(time.time() - start_time) * 1000:.2f} ms")
+        
+        # Get conversation history for the response
+        conversation_history = ""
+        if self.session_manager:
+            conversation_history = self.session_manager.get_formatted_history(user_id)
         
         # Check if custom response function is registered
         if best_expert in self.expert_responses:
-            # Use custom response function
-            return await self.expert_responses[best_expert](query)
+            # Use custom response function (Note: custom handlers would need to be updated 
+            # to use conversation history as well, but that's outside our scope here)
+            response = await self.expert_responses[best_expert](query)
+        else:
+            # Default RAG pipeline:
+            # 1. Retrieve relevant documents from ChromaDB
+            results = await self.db_handler.get_similar_documents(best_expert, query_embedding.tolist(), self.top_k)
+            
+            # 2. Extract documents
+            documents = results.get("documents", [])
+            
+            if not documents:
+                logging.warning(f"No documents found for expert {best_expert}")
+                response = await self.fallback_response(query)
+            else:
+                # 3. Generate response using LLM with conversation history
+                response = await generate_response(
+                    query=query, 
+                    context=documents,
+                    conversation_history=conversation_history, 
+                    expert_name=best_expert, 
+                )
         
-        # Default RAG pipeline:
-        # 1. Retrieve relevant documents from ChromaDB
-        results = await self.db_handler.get_similar_documents(best_expert, query_embedding.tolist(), self.top_k)
-        
-        # 2. Extract documents
-        documents = results.get("documents", [])
-        
-        if not documents:
-            logging.warning(f"No documents found for expert {best_expert}")
-            return await self.fallback_response(query)
-        
-        # 3. Generate response using LLM
-        response = await generate_response(query, documents, best_expert)
+        # Record the interaction in the session manager
+        if self.session_manager:
+            self.session_manager.add_message(user_id, query, response, best_expert)
         
         return response

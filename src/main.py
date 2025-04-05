@@ -2,11 +2,13 @@ import os
 import asyncio
 import argparse
 import time
+import uuid
 import logging
 from pathlib import Path
 from utils.converter import CentroidConverter
 from utils.visualizer import CentroidVisualizer
 from router.multi_layer_router import MultiLayerRouter
+from utils.session_manager import SessionManager
 from utils.config import BASE_DIR, SRC_DIR, DATA_DIR
 
 # Set higher logging level for these libraries
@@ -21,16 +23,24 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 # Define additional paths
 TRACKING_FILE = os.path.join(SRC_DIR, "tracking", "processed_files.json")
 CENTROID_VECTORS_FILE = os.path.join(SRC_DIR, "router", "centroid_vectors.py")
+CONVERSATION_DIR = os.path.join(SRC_DIR, "tracking", "conversations")
 
 # Ensure directories exist
 os.makedirs(os.path.join(SRC_DIR, "tracking"), exist_ok=True)
 os.makedirs(os.path.join(SRC_DIR, "router"), exist_ok=True)
+os.makedirs(CONVERSATION_DIR, exist_ok=True)
 
 
 async def process_samples():
     """Process and test the semantic router with sample queries."""
-    # Initialize router
-    router = MultiLayerRouter(use_openai=False)
+    # Create session manager
+    session_manager = SessionManager(os.path.join(SRC_DIR, "tracking"))
+    
+    # Initialize router with session manager
+    router = MultiLayerRouter(use_openai=False, session_manager=session_manager)
+    
+    # Generate a sample user ID
+    user_id = f"test_user_default"
     
     # Test with some sample queries
     sample_queries = [
@@ -38,21 +48,28 @@ async def process_samples():
         "I need help with my physics homework",
         "I'm feeling stressed about my exams",
         "What are the symptoms of anxiety?",
+        "new_session",  # Test session reset
     ]
     
     for query in sample_queries:
         print(f"\nRouting query: '{query}'")
         start_time = time.time()
-        response = await router.route_query(query)
-        pretty_print_response(response)
+        response = await router.route_query(query, user_id)
+        print(f"Response: {response}")
         print(f"Time taken: {time.time() - start_time:.2f} seconds")
-
 
 async def interactive_mode():
     """Run an interactive session where the user can enter queries."""
+    # Create session manager
+    session_manager = SessionManager(os.path.join(SRC_DIR, "tracking"))
+    
     # Initialize router
     print("Initializing router...")
-    router = MultiLayerRouter(use_openai=False)
+    router = MultiLayerRouter(use_openai=False, session_manager=session_manager)
+    
+    # Generate a user ID for this session
+    user_id = f"interactive_user_default"
+    print(f"Session ID: {user_id}")
     
     # Check if experts exist
     try:
@@ -62,7 +79,8 @@ async def interactive_mode():
         print("No experts found. Please process documents first.")
         return
     
-    print("\nEnter your queries (type 'exit', 'quit', or 'q' to quit):")
+    print("\nEnter your queries (type 'exit', 'quit', or 'q' to quit)")
+    print("Type 'new_session', 'reset', or 'clear' to start a new conversation")
     
     while True:
         # Get query from user
@@ -77,25 +95,30 @@ async def interactive_mode():
         if query.strip():
             start_time = time.time()
             try:
-                response = await router.route_query(query)
-                # print(f"Response: {response['answer']}")
-                pretty_print_response(response)
+                response = await router.route_query(query, user_id)
+                
+                # Pretty print the response
+                print("\n" + "="*80)
+                print(" RESPONSE ".center(80, "="))
+                print("="*80 + "\n")
+                
+                # Print answer with word wrapping
+                import textwrap
+                answer = response.get('answer', 'No answer provided')
+                wrapped_answer = textwrap.fill(answer, width=80)
+                print(wrapped_answer)
+                
+                # Print sources info if available
+                if 'sources' in response:
+                    print("\n" + "-"*80)
+                    print(f"Sources: {response['sources']} documents retrieved")
+                
+                print("\n" + "="*80)
+                
                 print(f"Time taken: {time.time() - start_time:.2f} seconds")
             except Exception as e:
                 print(f"Error processing query: {e}")
 
-def pretty_print_response(response):
-    print("\n" + "="*80)
-    print(" RESPONSE ".center(80, "="))
-    print("="*80 + "\n")    
-    print(f"Response: {response['answer']}")
-    
-    # Print sources info if available
-    if 'sources' in response:
-        print("\n" + "-"*80)
-        print(f"Sources: {response['sources']} documents retrieved")
-    
-    print("\n" + "="*80 + "\n")
 
 def main():
     parser = argparse.ArgumentParser(description="Multi-Layer Semantic Router")

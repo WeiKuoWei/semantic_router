@@ -5,6 +5,7 @@ repo_prompt.md
 
 # directories
 database
+conversations
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
