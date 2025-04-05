@@ -197,8 +197,10 @@ class MultiLayerRouter:
         # Create augmented query with conversation context
         augmented_query = query
         if conversation_context:
-            # Add conversation context but give more weight to current query
-            augmented_query = f"{conversation_context} {query} {query}"
+            '''***
+            Consider implementing diminishing returns for conversation context length. Older context should be discounted. 
+            '''
+            augmented_query = f"{conversation_context} {query}"
         
         # Get query embedding for the augmented query
         query_embedding = await self.get_embedding(augmented_query)
@@ -276,4 +278,4 @@ class MultiLayerRouter:
         if self.session_manager:
             self.session_manager.add_message(user_id, query, response, best_expert)
         
-        return response
+        return response, best_expert
