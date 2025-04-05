@@ -1,6 +1,6 @@
 # Hierarchical Centroid-Based Router for Multi-Expert AI Systems
 
-A scalable and efficient architecture for routing user queries to the appropriate domain expert in multi-expert systems.
+A scalable and efficient architecture for routing user queries to the appropriate domain expert in multi-expert systems, now with a modern web interface.
 
 ## Key Features
 
@@ -11,6 +11,53 @@ A scalable and efficient architecture for routing user queries to the appropriat
 - **No Manual Utterances**: Eliminates the need to manually create utterances for each expert
 - **Vector Database Integration**: Stores document embeddings in ChromaDB for efficient retrieval
 - **LLM-Powered Responses**: Uses OpenAI's GPT models to generate responses based on retrieved content
+- **Modern Web Interface**: React-based UI with support for markdown, code highlighting, and mathematical formulas
+
+## Project Structure
+
+```
+project/
+├── backend/
+│   ├── tracking/
+│   │   ├── processed_files.json
+│   │   └── conversations/
+│   ├── router/
+│   │   ├── multi_layer_router.py
+│   │   └── centroid_vectors.py
+│   ├── utils/
+│   │   ├── converter.py
+│   │   ├── visualizer.py
+│   │   ├── session_manager.py
+│   │   ├── llm_service.py
+│   │   ├── chromadb_handler.py
+│   │   └── config.py
+│   ├── api/
+│   │   ├── main.py
+│   │   ├── routes/
+│   │   └── models/
+│   ├── db/
+│   └── main.py
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── ChatInterface.jsx
+│   │   │   └── ...
+│   │   ├── services/
+│   │   │   └── api.js
+│   │   ├── App.jsx
+│   │   └── index.jsx
+│   └── package.json
+├── data/
+│   ├── course_material/
+│   │   ├── applied_machine_learning/
+│   │   └── reinforcement_learning/
+│   └── health_expert/
+│       ├── mental_health/
+│       └── physical_health/
+├── .env
+└── README.md
+```
 
 ## How It Works
 
@@ -33,6 +80,12 @@ A scalable and efficient architecture for routing user queries to the appropriat
    - These chunks and the query are sent to the OpenAI API
    - The LLM generates a comprehensive response based on the retrieved knowledge
 
+4. **Web Interface**:
+   - React frontend communicates with the FastAPI backend
+   - Chat interface supports markdown, syntax highlighting, and math expressions
+   - Session management for continuing conversations
+   - Responsive design for desktop and mobile use
+
 ## Technical Advantages
 
 - **Computational Efficiency**: Reduces routing decisions from O(n) to O(log n) complexity
@@ -40,75 +93,77 @@ A scalable and efficient architecture for routing user queries to the appropriat
 - **Zero Manual Configuration**: No need for manual utterances or labeled training data
 - **Incremental Learning**: New documents automatically update centroids without full recomputation
 - **Collaborative Learning**: Multiple users can share and benefit from the same knowledge base
+- **Enhanced User Experience**: Rich text rendering with support for code and mathematical formulas
 
 ## Setup
+
+### Backend Setup
 
 1. Create a `.env` file with your OpenAI API key:
    ```
    OPENAI_API_KEY=your-api-key-here
-   DB_PATH=src/db
+   DB_PATH="../database"
    ```
 
-2. Install requirements:
+2. Install backend requirements:
    ```bash
-   pip install -r src/requirements.txt
+   cd backend
+   pip install -r requirements.txt
    ```
 
-3. Place PDF files in the appropriate expert directories:
+3. In the data directory, place PDF files in the appropriate expert directories:
    - Each PDF should contain domain-specific knowledge
    - File names must be unique within each expert directory
-   - Example hierarchy with the provided data
-     ```
-     data/
-     ├── course_material/
-     │   ├── applied_machine_learning/
-     │   │   └── [PDF files]
-     │   └── reinforcement_learning/
-     │       └── [PDF files]
-     └── health_expert/
-         ├── mental_health/
-         │   └── [PDF files]
-         └── physical_health/
-             └── [PDF files]
-     ```
-   - Feel free to create more groups and expert
+
+### Frontend Setup
+
+1. Install frontend dependencies:
+   ```bash
+   cd frontend
+   npm install
+   ```
 
 ## Usage
 
-1. **Process PDF files and generate centroids**:
-   ```bash
-   python src/main.py --process
-   ```
-   This scans all PDF files, calculates embeddings, stores them in ChromaDB, and updates centroid vectors for all experts and groups.
+### Data Processing
 
-2. **Test with sample queries**:
-   ```bash
-   python src/main.py --test
-   ```
-   Tests the router with sample queries to see which expert handles each query.
+Process PDF files and generate centroids:
+```bash
+# launch backend and execute the process function at http://localhost:8000/docs, or
+curl -X POST http://localhost:8000/api/process_file
 
-3. **Interactive Query Mode**:
+```
+
+This scans all PDF files, calculates embeddings, stores them in ChromaDB, and updates centroid vectors for all experts and groups.
+
+### Running the Application
+
+1. Start the backend API:
    ```bash
-   python src/main.py --query
+   cd backend
+   python -m uvicorn api.main:app --reload
    ```
-   Starts an interactive session where you can type queries and get responses from the appropriate expert.
+
+2. Start the frontend development server:
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+
+3. Open your browser to the URL shown in the Vite output (typically http://localhost:5173)
 
 ## Future Work
 
-1. **Improved Vector Search**:
-   - Implement hybrid search combining semantic and keyword matching
-   - Add support for filtering results by metadata
-   - Optimize retrieval with approximate nearest neighbor search for larger collections
-
-2. **Enhanced LLM Integration**:
+1. **Enhanced LLM Integration**:
    - Add support for different LLM providers (Anthropic, Llama, etc.)
    - Implement domain-specific prompt engineering for each expert
    - Add fine-tuning capabilities for expert-specific knowledge
 
-3. **Dynamic Expert Discovery**:
+2. **Dynamic Expert Discovery**:
    - Automatically detect new expert directories and update the routing system
    - Enable real-time updates to centroids as new content is added
 
-4. **Performance Optimization**:
-   - Implement caching for frequently asked queries
-   - Optimize embedding generation for large document collections
+3. **Frontend Enhancements**:
+   - Add user authentication and user-specific data
+   - Implement expert switching for specialized inquiries
+   - Add visualization of document sources and relevance scores
