@@ -1,11 +1,14 @@
 import os
 import json
+import time
+import uuid
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple, Set
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import DirectoryLoader
+from utils.chromadb_handler import ChromaDBHandler
 
 class CentroidConverter:
     def __init__(self, base_dir: str, tracking_file: str):
@@ -19,23 +22,15 @@ class CentroidConverter:
         self.base_dir = Path(base_dir)
         self.tracking_file = Path(tracking_file)
         self.model = SentenceTransformer('all-mpnet-base-v2')
+        self.db_handler = ChromaDBHandler()
         
         # Load tracking data if it exists
         if self.tracking_file.exists():
-            try:
-                with open(self.tracking_file, 'r') as f:
-                    content = f.read().strip()
-                    if content:  # Check if file is not empty
-                        self.tracking_data = json.load(f)
-                    else:
-                        self.tracking_data = {}
-            except json.JSONDecodeError:
-                # If the file exists but has invalid JSON
-                print(f"Warning: Invalid JSON in tracking file. Creating new tracking data.")
-                self.tracking_data = {}
+            with open(self.tracking_file, 'r') as f:
+                self.tracking_data = json.load(f)
         else:
             self.tracking_data = {}
-        
+            
         # Ensure directories exist
         os.makedirs(os.path.dirname(self.tracking_file), exist_ok=True)
     
@@ -73,9 +68,11 @@ class CentroidConverter:
         embeddings_array = np.vstack(embeddings)
         return np.mean(embeddings_array, axis=0)
     
-    def get_expert_data(self, expert_dir: Path) -> Tuple[np.ndarray, Set[str]]:
+    async def get_expert_data(self, expert_dir: Path) -> Tuple[np.ndarray, Set[str]]:
         """
         Process an expert directory and get its centroid.
+        - Calculates centroid for routing
+        - Saves document chunks to ChromaDB for retrieval
         
         Args:
             expert_dir: Path to the expert directory containing PDFs
@@ -107,6 +104,19 @@ class CentroidConverter:
             print(f"Error loading documents from {expert_dir}: {e}")
             return None, tracked_files
         
+        # Get filenames of all documents
+        current_files = {Path(doc.metadata['source']).name for doc in docs}
+        
+        # Only process new files
+        new_files = current_files - tracked_files
+        
+        if not new_files and expert_data["centroid"] is not None:
+            print(f"No new files to process in {expert_dir}")
+            return np.array(expert_data["centroid"]), tracked_files
+        else:
+            # Process all files if centroid doesn't exist or we have new files
+            new_files = current_files
+        
         # Split documents into chunks
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
@@ -114,56 +124,47 @@ class CentroidConverter:
         )
         chunks = text_splitter.split_documents(docs)
         
-        # Get filenames of all documents
-        current_files = {doc.metadata['source'].split('/')[-1] for doc in docs}
-        
-        # Only process new files
-        new_files = current_files - tracked_files
-        
-        if not new_files:
-            print(f"No new files to process in {expert_dir}")
-            # Return existing centroid if available
-            if expert_data["centroid"] is not None:
-                return np.array(expert_data["centroid"]), tracked_files
-            else:
-                # Process all files if centroid doesn't exist
-                new_files = current_files
-        
-        # Calculate embeddings
+        # Calculate embeddings for centroid
         all_embeddings = []
         
-        # If we have an existing centroid, include it weighted by the number of files
-        if expert_data["centroid"] is not None and tracked_files:
-            existing_centroid = np.array(expert_data["centroid"])
-            # Weight the existing centroid by the number of tracked files
-            all_embeddings.append(existing_centroid * len(tracked_files))
-            weight_sum = len(tracked_files)
-        else:
-            weight_sum = 0
+        # Save chunks to ChromaDB
+        print(f"Saving chunks to ChromaDB for expert: {expert_name}")
+        chunk_embeddings = []
+        metadatas = []
         
-        # Process new chunks
         for chunk in chunks:
-            # Only process chunks from new files
-            source_file = chunk.metadata['source'].split('/')[-1]
-            if source_file in new_files:
-                embedding = self.get_document_embedding(chunk.page_content)
-                all_embeddings.append(embedding)
-                weight_sum += 1
+            # Calculate embedding
+            embedding = self.get_document_embedding(chunk.page_content)
+            all_embeddings.append(embedding)
+            
+            # Prepare for ChromaDB
+            chunk_embeddings.append(embedding.tolist())
+            
+            # Create metadata for the chunk
+            metadata = {
+                'id': str(uuid.uuid4()),
+                'source': Path(chunk.metadata['source']).name,
+                'expert': expert_name,
+                'group': group_name
+            }
+            metadatas.append(metadata)
+        
+        # Save chunks to ChromaDB
+        await self.db_handler.save_to_db(expert_name, chunks, chunk_embeddings, metadatas)
         
         # Calculate new centroid
         if all_embeddings:
-            combined_vector = np.sum(all_embeddings, axis=0)
-            centroid = combined_vector / weight_sum
+            centroid = np.mean(np.vstack(all_embeddings), axis=0)
             
             # Update tracking data
             expert_data["centroid"] = centroid.tolist()
-            expert_data["files"] = list(tracked_files.union(new_files))
+            expert_data["files"] = list(current_files)
             
-            return centroid, tracked_files.union(new_files)
+            return centroid, current_files
         
         return np.array(expert_data["centroid"]), tracked_files
     
-    def process_all(self) -> Dict:
+    async def process_all(self) -> Dict:
         """
         Process all groups and experts, updating centroids.
         
@@ -189,7 +190,7 @@ class CentroidConverter:
                 expert_name = expert_dir.name
                 print(f"Processing expert: {expert_name}")
                 
-                centroid, files = self.get_expert_data(expert_dir)
+                centroid, files = await self.get_expert_data(expert_dir)
                 if centroid is not None:
                     expert_centroids.append(centroid)
                     expert_weights.append(len(files))
