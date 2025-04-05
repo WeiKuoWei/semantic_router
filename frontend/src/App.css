@@ -1,91 +1,282 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #1e1e2e;
+}
+
 .App {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 1000px;
+  height: 100vh;
+  padding: 0;
 }
 
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 80vh;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+  width: 100%;
+  /* max-width: 900px; */
+  margin: 0 auto;
+  height: 90vh;
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  background-color: #282a36;
+  border: 1px solid #44475a;
 }
 
 .chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px;
-  background-color: #f5f5f5;
-  border-bottom: 1px solid #ddd;
+  padding: 15px 20px;
+  background-color: #44475a;
+  border-bottom: 1px solid #6272a4;
+}
+
+.chat-header h2 {
+  color: #f8f8f2;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.clear-btn {
+  background-color: #4a7dfc;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.clear-btn:hover {
+  background-color: #3a6eee;
 }
 
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 15px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
+  background-color: #282a36;
 }
 
 .message {
-  max-width: 70%;
-  padding: 10px 15px;
+  max-width: 80%;
+  padding: 12px 16px;
   border-radius: 18px;
   word-wrap: break-word;
+  line-height: 1.5;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .message.user {
   align-self: flex-end;
-  background-color: #0084ff;
+  background-color: #4a7dfc;
   color: white;
 }
 
 .message.bot {
   align-self: flex-start;
-  background-color: #f0f0f0;
-  color: black;
+  background-color: #383a59;
+  color: #f8f8f2;
+  border-bottom-left-radius: 4px;
+}
+
+.message.error {
+  background-color: #ff5555;
 }
 
 .message-expert, .message-sources {
   font-size: 0.8em;
-  margin-top: 5px;
+  margin-top: 8px;
   opacity: 0.7;
 }
 
 .loading-indicator {
   align-self: center;
-  color: #888;
-  margin: 10px 0;
+  color: #bd93f9;
+  margin: 15px 0;
+  font-style: italic;
 }
 
 .input-form {
   display: flex;
   padding: 15px;
-  border-top: 1px solid #ddd;
+  background-color: #44475a;
+  border-top: 1px solid #6272a4;
+  width: 100%; /* Make sure it takes the full width */
+  box-sizing: border-box; /* Include padding in width calculation */
 }
 
-input {
+.message-input {
   flex: 1;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 20px;
+  padding: 12px 16px;
+  border: 1px solid #6272a4;
+  border-radius: 24px;
+  background-color: #383a59;
+  color: #f8f8f2;
+  font-size: 1rem;
   margin-right: 10px;
+  transition: border-color 0.2s;
+  width: 100%; /* Ensure it uses available space */
 }
 
-button {
-  padding: 10px 15px;
-  background-color: #0084ff;
-  color: white;
+.message-input:focus {
+  outline: none;
+  border-color: #8be9fd;
+}
+
+.message-input::placeholder {
+  color: #bd93f9;
+  opacity: 0.7;
+}
+
+.send-btn {
+  padding: 10px 20px;
+  background-color: #50fa7b;
+  color: #282a36;
   border: none;
-  border-radius: 20px;
+  border-radius: 24px;
   cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s;
 }
 
-button:disabled {
-  background-color: #cccccc;
+.send-btn:hover:not(:disabled) {
+  background-color: #5af78e;
+}
+
+.send-btn:disabled {
+  background-color: #6272a4;
   cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Markdown styling for bot messages */
+.message.bot .message-content {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.message.bot .message-content h1,
+.message.bot .message-content h2,
+.message.bot .message-content h3,
+.message.bot .message-content h4,
+.message.bot .message-content h5,
+.message.bot .message-content h6 {
+  margin-top: 0.7em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  color: #8be9fd;
+}
+
+.message.bot .message-content h1 { font-size: 1.5em; }
+.message.bot .message-content h2 { font-size: 1.3em; }
+.message.bot .message-content h3 { font-size: 1.1em; }
+
+.message.bot .message-content p {
+  margin-bottom: 0.8em;
+}
+
+.message.bot .message-content pre {
+  background-color: #44475a;
+  border-radius: 6px;
+  margin: 0.8em 0;
+  overflow-x: auto;
+}
+
+.message.bot .message-content code {
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 0.9em;
+  background-color: #44475a;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  color: #f1fa8c;
+}
+
+.message.bot .message-content pre code {
+  background-color: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.message.bot .message-content ul,
+.message.bot .message-content ol {
+  margin-left: 1.5em;
+  margin-bottom: 0.8em;
+}
+
+.message.bot .message-content blockquote {
+  border-left: 4px solid #bd93f9;
+  padding-left: 1em;
+  margin-left: 0;
+  margin-right: 0;
+  font-style: italic;
+  color: #f8f8f2;
+  background-color: rgba(189, 147, 249, 0.1);
+  padding: 0.5em 1em;
+  border-radius: 0 4px 4px 0;
+}
+
+.message.bot .message-content a {
+  color: #8be9fd;
+  text-decoration: none;
+}
+
+.message.bot .message-content a:hover {
+  text-decoration: underline;
+}
+
+.message.bot .message-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 1em;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.message.bot .message-content th,
+.message.bot .message-content td {
+  border: 1px solid #44475a;
+  padding: 0.5em 0.8em;
+}
+
+.message.bot .message-content th {
+  background-color: #44475a;
+  font-weight: 600;
+}
+
+/* Math formula rendering */
+.message.bot .message-content .katex-display {
+  overflow-x: auto;
+  padding: 0.5em 0;
+}
+
+.message.bot .message-content .katex {
+  font-size: 1.1em;
 }

@@ -1,5 +1,12 @@
 import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { sendQuery, getHistory, clearHistory } from '../services/api';
+
 
 function ChatInterface() {
   const [messages, setMessages] = useState([]);
@@ -93,18 +100,57 @@ function ChatInterface() {
     }
   };
 
+  // Component for rendering math expressions
+  const renderMath = ({ value, inline }) => {
+    return inline ? <InlineMath math={value} /> : <BlockMath math={value} />;
+  };
+
+  // Components for markdown rendering
+  const components = {
+    code({ node, inline, className, children, ...props }) {
+      const match = /language-(\w+)/.exec(className || '');
+      return !inline && match ? (
+        <SyntaxHighlighter
+          style={atomDark}
+          language={match[1]}
+          PreTag="div"
+          {...props}
+        >
+          {String(children).replace(/\n$/, '')}
+        </SyntaxHighlighter>
+      ) : (
+        <code className={className} {...props}>
+          {children}
+        </code>
+      );
+    },
+    // Add math rendering support
+    math: renderMath,
+    inlineMath: ({ node, ...props }) => renderMath({ ...props, inline: true }),
+  };
+
   return (
     <div className="chat-container">
       <div className="chat-header">
         <h2>Expert AI Assistant</h2>
-        <button onClick={handleReset}>Clear Chat</button>
+        <button onClick={handleReset} className="clear-btn">Clear Chat</button>
       </div>
       
       <div className="messages-container">
         {messages.map((msg, index) => (
-          <div key={index} className={`message ${msg.sender}`}>
+          <div key={index} className={`message ${msg.sender} ${msg.error ? 'error' : ''}`}>
             <div className="message-content">
-              {msg.text}
+              {msg.sender === 'bot' ? (
+                <ReactMarkdown 
+                  remarkPlugins={[remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                  components={components}
+                >
+                  {msg.text.replace(/\\(\w+)/g, "\\$1")}
+                </ReactMarkdown>
+              ) : (
+                msg.text
+              )}
             </div>
             {msg.expert && (
               <div className="message-expert">Expert: {msg.expert}</div>
@@ -124,8 +170,9 @@ function ChatInterface() {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask a question..."
           disabled={loading}
+          className="message-input"
         />
-        <button type="submit" disabled={loading || !input.trim()}>
+        <button type="submit" disabled={loading || !input.trim()} className="send-btn">
           Send
         </button>
       </form>
