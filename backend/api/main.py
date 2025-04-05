@@ -1,11 +1,10 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import uuid
+from contextlib import asynccontextmanager
 import os
 import sys
 import logging
-import asyncio
 
 # Add the parent directory to sys.path to enable imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,6 +17,10 @@ from utils.config import BASE_DIR, SRC_DIR, DATA_DIR
 from api.models.schemas import QueryRequest, QueryResponse, HistoryResponse
 
 # Configure logging - add this near the top of your file
+# First configure the basic logging format
+logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s") # "%(asctime)s - %(levelname)s - %(message)s"
+
+# Then configure specific loggers
 logging.getLogger("uvicorn").setLevel(logging.WARNING)
 logging.getLogger("fastapi").setLevel(logging.WARNING)
 logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
@@ -25,6 +28,8 @@ logging.getLogger("chromadb").setLevel(logging.WARNING)
 logging.getLogger("root").setLevel(logging.WARNING)
 logging.getLogger('pikepdf._core').setLevel(logging.ERROR)
 logging.getLogger('pdfminer.pdfpage').setLevel(logging.ERROR)
+logging.getLogger("llm_service").setLevel(logging.INFO)
+# logging.getLogger("multi_layer_router").setLevel(logging.INFO)
 
 # Define additional paths
 TRACKING_FILE = os.path.join(SRC_DIR, "tracking", "processed_files.json")
@@ -33,7 +38,10 @@ CENTROID_VECTORS_FILE = os.path.join(SRC_DIR, "router", "centroid_vectors.py")
 # Set environment variables
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-app = FastAPI(title="Expert AI Router API")
+app = FastAPI(
+    title="Expert AI Router API", 
+    docs_url="/docs", 
+)
 
 # Setup CORS to allow frontend to communicate
 app.add_middleware(
@@ -47,6 +55,12 @@ app.add_middleware(
 # Initialize components
 session_manager = SessionManager("tracking")
 router = MultiLayerRouter(use_openai=False, session_manager=session_manager)
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    # Close ChromaDB client if it exists
+    if hasattr(app.state, "db_handler") and app.state.db_handler is not None:
+        app.state.db_handler.client.close()
 
 @app.post("/api/query", response_model=QueryResponse)
 async def process_query(request: QueryRequest):

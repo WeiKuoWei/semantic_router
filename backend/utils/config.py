@@ -19,3 +19,4 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # Default values
 DEFAULT_TOP_K = 3
 DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_EMBEDDING_MODEL = "all-mpnet-base-v2"

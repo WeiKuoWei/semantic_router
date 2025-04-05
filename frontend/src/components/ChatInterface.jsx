@@ -13,6 +13,16 @@ function ChatInterface() {
   const [input, setInput] = useState('');
   const [sessionId, setSessionId] = useState('');
   const [loading, setLoading] = useState(false);
+  const ThinkingAnimation = () => {
+    return (
+      <div className="loading-indicator">
+        Thinking
+        <span className="dot">.</span>
+        <span className="dot">.</span>
+        <span className="dot">.</span>
+      </div>
+    );
+  };
 
   useEffect(() => {
     // Initialize session ID from localStorage or create new one
@@ -160,7 +170,7 @@ function ChatInterface() {
             )}
           </div>
         ))}
-        {loading && <div className="loading-indicator">Thinking...</div>}
+        {loading && <ThinkingAnimation />}
       </div>
       
       <form onSubmit={handleSubmit} className="input-form">
