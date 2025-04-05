@@ -7,7 +7,7 @@ load_dotenv()
 
 # Base directories
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-SRC_DIR = BASE_DIR / "src"
+SRC_DIR = BASE_DIR / "backend"
 DATA_DIR = BASE_DIR / "data"
 
 # Database path

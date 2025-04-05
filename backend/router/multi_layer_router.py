@@ -270,12 +270,20 @@ class MultiLayerRouter:
                 response = await generate_response(
                     query=query, 
                     context=documents,
-                    conversation_history=conversation_history, 
+                    conversation_history=conversation_history,
+
                     expert_name=best_expert, 
                 )
         
         # Record the interaction in the session manager
         if self.session_manager:
-            self.session_manager.add_message(user_id, query, response, best_expert)
+            self.session_manager.add_message(
+                user_id=user_id, 
+                query=query, 
+                response=response, 
+                conversation_context=conversation_context,
+                documents=documents,
+                expert_name=best_expert,
+                )
         
         return response, best_expert

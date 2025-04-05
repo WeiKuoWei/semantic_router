@@ -24,7 +24,7 @@ class SessionManager:
         # Ensure log directory exists
         os.makedirs(self.log_dir, exist_ok=True)
     
-    def add_message(self, user_id: str, query: str, response: Dict[str, Any], expert_name: Optional[str] = None):
+    def add_message(self, user_id: str, query: str, response: Dict[str, Any], conversation_context: str, documents: List[str], expert_name: Optional[str] = None):
         """
         Add a message to the user's session history.
         
@@ -47,6 +47,8 @@ class SessionManager:
             "formatted_time": formatted_time,
             "query": query,
             "response": response.get("answer", "No answer provided"),
+            "conversation_context":conversation_context,
+            # "documents": documents,
             "expert": expert_name
         }
         

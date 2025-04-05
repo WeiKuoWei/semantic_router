@@ -5,12 +5,16 @@ import uuid
 import os
 import sys
 import logging
+import asyncio
 
 # Add the parent directory to sys.path to enable imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from router.multi_layer_router import MultiLayerRouter
 from utils.session_manager import SessionManager
+from utils.converter import CentroidConverter
+from utils.visualizer import CentroidVisualizer
+from utils.config import BASE_DIR, SRC_DIR, DATA_DIR
 from api.models.schemas import QueryRequest, QueryResponse, HistoryResponse
 
 # Configure logging - add this near the top of your file
@@ -19,10 +23,15 @@ logging.getLogger("fastapi").setLevel(logging.WARNING)
 logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
 logging.getLogger("chromadb").setLevel(logging.WARNING)
 logging.getLogger("root").setLevel(logging.WARNING)
+logging.getLogger('pikepdf._core').setLevel(logging.ERROR)
+logging.getLogger('pdfminer.pdfpage').setLevel(logging.ERROR)
+
+# Define additional paths
+TRACKING_FILE = os.path.join(SRC_DIR, "tracking", "processed_files.json")
+CENTROID_VECTORS_FILE = os.path.join(SRC_DIR, "router", "centroid_vectors.py")
 
 # Set environment variables
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
 
 app = FastAPI(title="Expert AI Router API")
 
@@ -54,6 +63,18 @@ async def process_query(request: QueryRequest):
         "expert": best_expert if best_expert else "unknown",
         "sources": response.get("sources", 0)
     }
+
+@app.post("/api/process_file")
+async def process_file():
+    # Process documents and update centroids
+    converter = CentroidConverter(DATA_DIR, TRACKING_FILE)
+    await converter.process_all()
+    
+    # Generate centroid vectors file
+    visualizer = CentroidVisualizer(
+        tracking_file=TRACKING_FILE, output_file=CENTROID_VECTORS_FILE
+        )
+    visualizer.generate_centroid_vectors_file()
 
 @app.get("/api/history/{session_id}", response_model=HistoryResponse)
 async def get_history(session_id: str):
