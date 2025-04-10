@@ -1,10 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from contextlib import asynccontextmanager
-import os
-import sys
-import logging
+import os, sys, logging
 
 # Add the parent directory to sys.path to enable imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,12 +10,11 @@ from router.multi_layer_router import MultiLayerRouter
 from utils.session_manager import SessionManager
 from utils.converter import CentroidConverter
 from utils.visualizer import CentroidVisualizer
-from utils.config import BASE_DIR, SRC_DIR, DATA_DIR
+from utils.config import SRC_DIR, DATA_DIR, TRACKING_FILE, CENTROID_VECTORS_FILE
 from api.models.schemas import QueryRequest, QueryResponse, HistoryResponse
 
-# Configure logging - add this near the top of your file
 # First configure the basic logging format
-logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s") # "%(asctime)s - %(levelname)s - %(message)s"
+logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s") # "%(asctime)s 
 
 # Then configure specific loggers
 logging.getLogger("uvicorn").setLevel(logging.WARNING)
@@ -30,10 +26,6 @@ logging.getLogger('pikepdf._core').setLevel(logging.ERROR)
 logging.getLogger('pdfminer.pdfpage').setLevel(logging.ERROR)
 logging.getLogger("llm_service").setLevel(logging.INFO)
 # logging.getLogger("multi_layer_router").setLevel(logging.INFO)
-
-# Define additional paths
-TRACKING_FILE = os.path.join(SRC_DIR, "tracking", "processed_files.json")
-CENTROID_VECTORS_FILE = os.path.join(SRC_DIR, "router", "centroid_vectors.py")
 
 # Set environment variables
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -58,9 +50,13 @@ router = MultiLayerRouter(use_openai=False, session_manager=session_manager)
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    # Close ChromaDB client if it exists
-    if hasattr(app.state, "db_handler") and app.state.db_handler is not None:
-        app.state.db_handler.client.close()
+    # Close any open resources safely
+    if hasattr(router, "db_handler"):
+        try:
+            router.db_handler.close()
+        except AttributeError:
+            # Log that closing failed but don't crash
+            print("Warning: Could not close ChromaDB client properly")
 
 @app.post("/api/query", response_model=QueryResponse)
 async def process_query(request: QueryRequest):
@@ -71,10 +67,16 @@ async def process_query(request: QueryRequest):
     # Process query through router
     response, best_expert = await router.route_query(request.query, session_id)
     
+    # Process the best_expert format: break down by "_" and capitalize
+    if best_expert:
+        best_expert = best_expert.replace("_", " ").title()
+    else:
+        best_expert = "unknown"
+
     return {
         "answer": response.get("answer", "No response generated"),
         "session_id": session_id,
-        "expert": best_expert if best_expert else "unknown",
+        "expert": best_expert,
         "sources": response.get("sources", 0)
     }
 

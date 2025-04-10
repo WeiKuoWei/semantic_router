@@ -3,6 +3,7 @@ import logging
 import re
 import time
 import atexit
+import gc
 from typing import Dict, Any, Callable
 from semantic_router.encoders import OpenAIEncoder
 from sentence_transformers import SentenceTransformer, util
@@ -214,6 +215,12 @@ class MultiLayerRouter:
             
         Returns:
             Response from the selected expert
+
+        Note:
+        1. Update the `fallback_response` to directing the query to the default/general expert. 
+        2. If no expert group is found, direct query to fallback_response and skip the second layer.
+        3. Update the similarity threshold to [placeholder] to avoid false positives.
+        4. At the moment, conversation_context (includes only user queries) is used for routing instead of conversation_history.
         """
         # Check for session reset command
         if self.reset_command_pattern.match(query.strip()):
@@ -232,7 +239,7 @@ class MultiLayerRouter:
             '''***
             Consider implementing diminishing returns for conversation context length. Older context should be discounted. 
             '''
-            augmented_query = f"{conversation_context} {query}"
+            augmented_query = f"{conversation_context} {query} {query}"
         
         # Get query embedding for the augmented query
         query_embedding = await self.get_embedding(augmented_query)
@@ -303,7 +310,6 @@ class MultiLayerRouter:
                     query=query, 
                     context=documents,
                     conversation_history=conversation_history,
-
                     expert_name=best_expert, 
                 )
         

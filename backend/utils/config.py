@@ -9,6 +9,8 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 SRC_DIR = BASE_DIR / "backend"
 DATA_DIR = BASE_DIR / "data"
+TRACKING_FILE = os.path.join(SRC_DIR, "tracking", "processed_files.json")
+CENTROID_VECTORS_FILE = os.path.join(SRC_DIR, "router", "centroid_vectors.py")
 
 # Database path
 DB_PATH = os.getenv("DB_PATH", str("db"))

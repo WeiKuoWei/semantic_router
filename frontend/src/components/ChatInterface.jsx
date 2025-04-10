@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkMath from 'remark-math';
+import { InlineMath, BlockMath } from 'react-katex';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { sendQuery, getHistory, clearHistory } from '../services/api';
@@ -22,6 +23,28 @@ function ChatInterface() {
         <span className="dot">.</span>
       </div>
     );
+  };
+  const preprocessLatex = (text) => {
+    // First, fix inline math expressions: $...$
+    let processedText = text.replace(/\$([^$]+)\$/g, (match, formula) => {
+      return '$' + formula.replace(/\\([a-zA-Z]+)/g, '\\$1') + '$';
+    });
+    
+    // Then, fix block math expressions: $$...$$
+    processedText = processedText.replace(/\$\$([^$]+)\$\$/g, (match, formula) => {
+      return '$$' + formula.replace(/\\([a-zA-Z]+)/g, '\\$1') + '$$';
+    });
+    
+    // Also fix explicit math blocks with brackets: [ ... ]
+    processedText = processedText.replace(/\[(.*?)\]/g, (match, formula) => {
+      if (formula.includes('\\leftarrow') || formula.includes('\\alpha') || 
+          formula.includes('\\gamma') || formula.includes('\\max_')) {
+        return '[' + formula.replace(/\\([a-zA-Z_]+)/g, '\\$1') + ']';
+      }
+      return match; // Not a math formula, return unchanged
+    });
+    
+    return processedText;
   };
 
   useEffect(() => {
@@ -156,7 +179,7 @@ function ChatInterface() {
                   rehypePlugins={[rehypeKatex]}
                   components={components}
                 >
-                  {msg.text.replace(/\\(\w+)/g, "\\$1")}
+                  {preprocessLatex(msg.text)}
                 </ReactMarkdown>
               ) : (
                 msg.text
