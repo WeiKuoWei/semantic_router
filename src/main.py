@@ -78,8 +78,8 @@ async def interactive_mode():
             start_time = time.time()
             try:
                 response = await router.route_query(query)
-                # print(f"Response: {response['answer']}")
-                pretty_print_response(response)
+                print(f"Best expert: {response}")
+                # pretty_print_response(response)
                 print(f"Time taken: {time.time() - start_time:.2f} seconds")
             except Exception as e:
                 print(f"Error processing query: {e}")

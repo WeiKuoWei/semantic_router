@@ -223,18 +223,20 @@ class MultiLayerRouter:
             # Use custom response function
             return await self.expert_responses[best_expert](query)
         
-        # Default RAG pipeline:
-        # 1. Retrieve relevant documents from ChromaDB
-        results = await self.db_handler.get_similar_documents(best_expert, query_embedding.tolist(), self.top_k)
+        # # Default RAG pipeline:
+        # # 1. Retrieve relevant documents from ChromaDB
+        # results = await self.db_handler.get_similar_documents(best_expert, query_embedding.tolist(), self.top_k)
         
-        # 2. Extract documents
-        documents = results.get("documents", [])
+        # # 2. Extract documents
+        # documents = results.get("documents", [])
         
-        if not documents:
-            logging.warning(f"No documents found for expert {best_expert}")
-            return await self.fallback_response(query)
+        # if not documents:
+        #     logging.warning(f"No documents found for expert {best_expert}")
+        #     return await self.fallback_response(query)
         
-        # 3. Generate response using LLM
-        response = await generate_response(query, documents, best_expert)
+        # # 3. Generate response using LLM
+        # response = await generate_response(query, documents, best_expert)
         
-        return response
+        # return response
+
+        return best_expert
