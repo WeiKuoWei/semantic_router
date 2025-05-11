@@ -29,24 +29,79 @@ os.makedirs(os.path.join(SRC_DIR, "router"), exist_ok=True)
 
 async def process_samples():
     """Process and test the semantic router with sample queries."""
+    # Import the samples
+    from expert_samples import samples
+    
     # Initialize router
     router = MultiLayerRouter(use_openai=False)
     
-    # Test with some sample queries
-    sample_queries = [
-        "Tell me about course materials for biology",
-        "I need help with my physics homework",
-        "I'm feeling stressed about my exams",
-        "What are the symptoms of anxiety?",
-    ]
-    
-    for query in sample_queries:
-        print(f"\nRouting query: '{query}'")
-        start_time = time.time()
-        response = await router.route_query(query)
-        pretty_print_response(response)
-        print(f"Time taken: {time.time() - start_time:.2f} seconds")
+    # Track accuracy metrics per expert
+    results = {}
+    overall_correct = 0
+    overall_total = 0
+    total_time = 0
 
+    # Process each expert's samples
+    for expert, queries in samples.items():
+        print(f"\n===== Testing expert: {expert} =====")
+        
+        # Initialize metrics for this expert
+        results[expert] = {
+            "total": len(queries),
+            "correct": 0,
+            "incorrect_routings": {}
+        }
+        
+        # Process each query for this expert
+        for query in queries:
+            print(f"\nRouting query: '{query}'")
+            print(f"Expected expert: {expert}")
+            
+            start_time = time.time()
+            _, response = await router.route_query(
+                query=query, 
+                check_accuracy=True, 
+                expected_expert=expert
+            )
+            
+            # Update accuracy counters
+            is_correct = response.get("is_correct", False)
+            if is_correct:
+                results[expert]["correct"] += 1
+                overall_correct += 1
+            else:
+                # Track which expert it was incorrectly routed to
+                routed_expert = response.get("expert", "unknown")
+                if routed_expert not in results[expert]["incorrect_routings"]:
+                    results[expert]["incorrect_routings"][routed_expert] = 0
+                results[expert]["incorrect_routings"][routed_expert] += 1
+            
+            overall_total += 1
+            time_taken = time.time() - start_time
+            total_time += time_taken
+            print(f"Time taken: {time_taken:.2f} seconds")
+    
+    # Print overall accuracy statistics
+    if overall_total > 0:
+        print("\n===== Per-Expert Accuracy =====")
+        for expert, metrics in results.items():
+            accuracy = (metrics["correct"] / metrics["total"]) * 100
+            print(f"\nExpert: {expert}")
+            print(f"Accuracy: {accuracy:.2f}% ({metrics['correct']}/{metrics['total']})")
+            
+            if metrics["incorrect_routings"]:
+                print("Incorrect routings:")
+                for wrong_expert, count in metrics["incorrect_routings"].items():
+                    print(f"  - {wrong_expert}: {count} times")
+
+        print("\n===== Overall Accuracy Results =====")
+        print(f"Total samples: {overall_total}")
+        print(f"Correctly routed: {overall_correct}")
+        print(f"Overall accuracy: {(overall_correct / overall_total) * 100:.2f}%")
+        print(f"Total time taken: {total_time:.2f} seconds")
+        print(f"Average time per query: {total_time / overall_total:.3f} seconds")
+    else:
+        print("No samples were processed.")
 
 async def interactive_mode():
     """Run an interactive session where the user can enter queries."""
@@ -77,25 +132,12 @@ async def interactive_mode():
         if query.strip():
             start_time = time.time()
             try:
-                response = await router.route_query(query)
-                print(f"Best expert: {response}")
-                # pretty_print_response(response)
+                expert, _ = await router.route_query(query)
+                print(f"Best expert: {expert}")
+                # print(response)
                 print(f"Time taken: {time.time() - start_time:.2f} seconds")
             except Exception as e:
                 print(f"Error processing query: {e}")
-
-def pretty_print_response(response):
-    print("\n" + "="*80)
-    print(" RESPONSE ".center(80, "="))
-    print("="*80 + "\n")    
-    print(f"Response: {response['answer']}")
-    
-    # Print sources info if available
-    if 'sources' in response:
-        print("\n" + "-"*80)
-        print(f"Sources: {response['sources']} documents retrieved")
-    
-    print("\n" + "="*80 + "\n")
 
 def main():
     parser = argparse.ArgumentParser(description="Multi-Layer Semantic Router")
@@ -109,7 +151,7 @@ def main():
         
         # Process documents and update centroids
         converter = CentroidConverter(DATA_DIR, TRACKING_FILE)
-        tracking_data = asyncio.run(converter.process_all())
+        _ = asyncio.run(converter.process_all())
         
         # Generate centroid vectors file
         visualizer = CentroidVisualizer(TRACKING_FILE, CENTROID_VECTORS_FILE)

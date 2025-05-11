@@ -2,9 +2,12 @@
 # files
 .DS_Store
 repo_prompt.md
+processed_files.json
+centroid_vectors.py
 
 # directories
 database
+data
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

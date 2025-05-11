@@ -163,7 +163,8 @@ class MultiLayerRouter:
         vec2 = vec2.astype(np.float32)
         return float(util.cos_sim(vec1.reshape(1, -1), vec2.reshape(1, -1))[0][0])
     
-    async def route_query(self, query: str) -> Dict[str, Any]:
+
+    async def route_query(self, query: str, check_accuracy: bool = False, expected_expert: str = None) -> Dict[str, Any]:
         """
         Route a query through the two-layer system:
         1. Find the best expert
@@ -172,9 +173,11 @@ class MultiLayerRouter:
         
         Args:
             query: The user query
+            check_accuracy: Whether to check if the query is routed to the correct expert
+            expected_expert: The expected expert for this query (used when check_accuracy is True)
             
         Returns:
-            Response from the selected expert
+            Response from the selected expert, with optional accuracy information
         """
         # Get query embedding
         query_embedding = await self.get_embedding(query)
@@ -218,11 +221,18 @@ class MultiLayerRouter:
         # log info in miliseconds
         logging.info(f"Time taken for routing: {(time.time() - start_time) * 1000:.2f} ms")
         
-        # Check if custom response function is registered
-        if best_expert in self.expert_responses:
-            # Use custom response function
-            return await self.expert_responses[best_expert](query)
+        # Build the response
+        response = {
+            "expert": best_expert,
+            "group": best_group,
+            "similarity": best_similarity
+        }
         
+        # Add accuracy information if requested
+        if check_accuracy and expected_expert is not None:
+            response["expected_expert"] = expected_expert
+            response["is_correct"] = (best_expert == expected_expert)
+                
         # # Default RAG pipeline:
         # # 1. Retrieve relevant documents from ChromaDB
         # results = await self.db_handler.get_similar_documents(best_expert, query_embedding.tolist(), self.top_k)
@@ -239,4 +249,5 @@ class MultiLayerRouter:
         
         # return response
 
-        return best_expert
+        return best_expert, response
+    
