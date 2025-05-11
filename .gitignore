@@ -2,11 +2,13 @@
 # files
 .DS_Store
 repo_prompt.md
+centroid_vectors.py
 processed_files.json
 package-lock.json
 
 # directories
 database
+data
 conversations
 
 # Byte-compiled / optimized / DLL files
