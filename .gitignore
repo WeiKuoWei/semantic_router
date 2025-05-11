@@ -2,6 +2,8 @@
 # files
 .DS_Store
 repo_prompt.md
+processed_files.json
+package-lock.json
 
 # directories
 database

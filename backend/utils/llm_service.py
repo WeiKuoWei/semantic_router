@@ -1,5 +1,3 @@
-import os
-import asyncio
 import time
 import logging
 from typing import List, Dict, Any
@@ -7,10 +5,14 @@ from openai import AsyncOpenAI
 
 from utils.config import OPENAI_API_KEY, DEFAULT_MODEL
 
+# Get a named logger instead of using root logger
+logger = logging.getLogger("llm_service")
+
 # Initialize OpenAI client
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
-async def generate_response(query: str, context: List[str], conversation_history: List[str], expert_name: str = None, model: str = DEFAULT_MODEL) -> Dict[str, Any]:
+async def generate_response(query: str, context: List[str]
+, conversation_history: List[str], expert_name: str = None, model: str = DEFAULT_MODEL) -> Dict[str, Any]:
     """
     Generate a response using OpenAI's GPT model with retrieved context.
     
@@ -53,10 +55,10 @@ async def generate_response(query: str, context: List[str], conversation_history
         response = await client.chat.completions.create(
             model=model,
             messages=messages,
-            temperature=0.7,
-            max_tokens=500,
+            temperature=0,
+            max_tokens=300,
         )
-        logging.info(f"OpenAI API call took {time.time() - start_time:.2f} seconds")
+        logger.info(f"OpenAI API call took {time.time() - start_time:.2f} seconds")
         
         # Extract answer
         answer = response.choices[0].message.content

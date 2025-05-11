@@ -1,5 +1,4 @@
 import os
-import asyncio
 import uuid
 import numpy as np
 from pathlib import Path
@@ -27,7 +26,19 @@ class ChromaDBHandler:
         
         # Ensure database directory exists
         os.makedirs(self.db_path, exist_ok=True)
-    
+        
+    def close(self):
+        """Close the ChromaDB client connection"""
+        # For newer versions of ChromaDB, the client might not have a close method
+        # This is a safer approach
+        if hasattr(self, "client"):
+            # For some implementations, we can use __del__ which is called during garbage collection
+            if hasattr(self.client, "__del__"):
+                try:
+                    self.client.__del__()
+                except:
+                    pass
+            
     def get_embedding(self, text: str) -> List[float]:
         """
         Get embedding for a text document.
