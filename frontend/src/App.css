@@ -29,7 +29,6 @@ body, html {
   display: flex;
   flex-direction: column;
   width: 100%;
-  /* max-width: 900px; */
   margin: 0 auto;
   height: 90vh;
   border-radius: 12px;
@@ -115,13 +114,6 @@ body, html {
   font-size: 0.8em;
   margin-top: 8px;
   opacity: 0.7;
-}
-
-.loading-indicator {
-  align-self: center;
-  color: #bd93f9;
-  margin: 15px 0;
-  font-style: italic;
 }
 
 .input-form {
@@ -239,7 +231,6 @@ body, html {
   font-style: italic;
   color: #f8f8f2;
   background-color: rgba(189, 147, 249, 0.1);
-  padding: 0.5em 1em;
   border-radius: 0 4px 4px 0;
 }
 

@@ -40,9 +40,9 @@ async def generate_response(query: str, context: List[str]
         
         # Create system prompt based on expert
         if expert_name:
-            system_prompt = f"You are an expert in {expert_name}. Answer the question based on the following context."
+            system_prompt = f"You are an expert in {expert_name}. Answer the question based on the following context. Short response only:"
         else:
-            system_prompt = "Answer the question based on the following context."
+            system_prompt = "Answer the question based on the following context. Short response only:"
         
         # Create messages for OpenAI API
         messages = [

@@ -63,7 +63,8 @@ async def process_query(request: QueryRequest):
     """Process a user query and return response from appropriate expert"""
     # Generate session ID if not provided
     session_id = request.session_id or f"user_default"
-    
+    print(f"Session ID: {session_id}")
+
     # Process query through router
     response, best_expert = await router.route_query(request.query, session_id)
     

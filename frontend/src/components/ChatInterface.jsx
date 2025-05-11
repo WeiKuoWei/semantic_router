@@ -8,22 +8,27 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { sendQuery, getHistory, clearHistory } from '../services/api';
 
+const ThinkingAnimation = () => {
+  return (
+    <div className="loading-indicator">
+      Thinking
+      <span className="dot">.</span>
+      <span className="dot">.</span>
+      <span className="dot">.</span>
+    </div>
+  );
+};
+
+const renderMath = ({ value, inline }) => {
+  return inline ? <InlineMath math={value} /> : <BlockMath math={value} />;
+};
 
 function ChatInterface() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sessionId, setSessionId] = useState('');
   const [loading, setLoading] = useState(false);
-  const ThinkingAnimation = () => {
-    return (
-      <div className="loading-indicator">
-        Thinking
-        <span className="dot">.</span>
-        <span className="dot">.</span>
-        <span className="dot">.</span>
-      </div>
-    );
-  };
+  
   const preprocessLatex = (text) => {
     // First, fix inline math expressions: $...$
     let processedText = text.replace(/\$([^$]+)\$/g, (match, formula) => {
@@ -66,10 +71,12 @@ function ChatInterface() {
       const response = await getHistory(sid);
       if (response.history) {
         const formattedMessages = response.history.map(msg => ({
+          id: `user-${msg.timestamp}`,
           text: msg.query,
           sender: 'user',
           timestamp: msg.timestamp
         })).concat(response.history.map(msg => ({
+          id: `bot-${msg.timestamp + 1}`,
           text: msg.response,
           sender: 'bot',
           expert: msg.expert,
@@ -87,11 +94,13 @@ function ChatInterface() {
     e.preventDefault();
     if (!input.trim()) return;
 
+    const timestamp = Date.now();
     // Add user message to UI
     const userMessage = {
+      id: `user-${timestamp}`,
       text: input,
       sender: 'user',
-      timestamp: Date.now()
+      timestamp
     };
     setMessages([...messages, userMessage]);
     setInput('');
@@ -101,19 +110,22 @@ function ChatInterface() {
       // Send to backend
       const response = await sendQuery(input, sessionId);
       
+      const responseTimestamp = Date.now();
       // Add response to UI
       const botMessage = {
+        id: `bot-${responseTimestamp}`,
         text: response.answer,
         sender: 'bot',
         expert: response.expert,
         sources: response.sources,
-        timestamp: Date.now()
+        timestamp: responseTimestamp
       };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
       // Add error message
       setMessages(prev => [...prev, {
+        id: `error-${Date.now()}`,
         text: 'Sorry, there was an error processing your request.',
         sender: 'bot',
         error: true,
@@ -131,11 +143,6 @@ function ChatInterface() {
     } catch (error) {
       console.error('Error clearing history:', error);
     }
-  };
-
-  // Component for rendering math expressions
-  const renderMath = ({ value, inline }) => {
-    return inline ? <InlineMath math={value} /> : <BlockMath math={value} />;
   };
 
   // Components for markdown rendering
@@ -170,8 +177,8 @@ function ChatInterface() {
       </div>
       
       <div className="messages-container">
-        {messages.map((msg, index) => (
-          <div key={index} className={`message ${msg.sender} ${msg.error ? 'error' : ''}`}>
+        {messages.map((msg) => (
+          <div key={msg.id} className={`message ${msg.sender} ${msg.error ? 'error' : ''}`}>
             <div className="message-content">
               {msg.sender === 'bot' ? (
                 <ReactMarkdown 

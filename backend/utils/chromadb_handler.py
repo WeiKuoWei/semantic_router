@@ -36,8 +36,8 @@ class ChromaDBHandler:
             if hasattr(self.client, "__del__"):
                 try:
                     self.client.__del__()
-                except:
-                    pass
+                except Exception as e:
+                    print(f"Error closing ChromaDB client: {e}")
             
     def get_embedding(self, text: str) -> List[float]:
         """

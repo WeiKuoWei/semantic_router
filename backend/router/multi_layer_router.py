@@ -4,7 +4,7 @@ import re
 import time
 import atexit
 import gc
-from typing import Dict, Any, Callable
+from typing import Dict, Any, Callable, Tuple, List
 from semantic_router.encoders import OpenAIEncoder
 from sentence_transformers import SentenceTransformer, util
 
@@ -201,26 +201,19 @@ class MultiLayerRouter:
         vec2 = vec2.astype(np.float32)
         return float(util.cos_sim(vec1.reshape(1, -1), vec2.reshape(1, -1))[0][0])
     
-    async def route_query(self, query: str, user_id: str = "default_user") -> Dict[str, Any]:
+    async def route_query(self, query: str, user_id: str = "default_user") -> Tuple[Dict[str, Any], str]:
         """
         Route a query through the two-layer system:
         1. Check for session reset command
-        2. Find the best expert considering conversation history
-        3. Retrieve relevant documents
-        4. Generate response using LLM with conversation context
+        2. Route query to appropriate expert group, then specific expert
+        3. Retrieve relevant documents and generate response
         
         Args:
             query: The user query
             user_id: Identifier for the user (for session tracking)
             
         Returns:
-            Response from the selected expert
-
-        Note:
-        1. Update the `fallback_response` to directing the query to the default/general expert. 
-        2. If no expert group is found, direct query to fallback_response and skip the second layer.
-        3. Update the similarity threshold to [placeholder] to avoid false positives.
-        4. At the moment, conversation_context (includes only user queries) is used for routing instead of conversation_history.
+            Tuple of (response, expert_name) where response is a dict with answer
         """
         # Check for session reset command
         if self.reset_command_pattern.match(query.strip()):
@@ -228,90 +221,46 @@ class MultiLayerRouter:
                 self.session_manager.clear_session(user_id)
             return {"answer": "Session has been reset. What would you like to ask about?"}
         
-        # Get conversation context if available
-        conversation_context = ""
-        if self.session_manager:
-            conversation_context = self.session_manager.get_conversation_context(user_id)
-        
-        # Create augmented query with conversation context
-        augmented_query = query
-        if conversation_context:
-            '''***
-            Consider implementing diminishing returns for conversation context length. Older context should be discounted. 
-            '''
-            augmented_query = f"{conversation_context} {query} {query}"
-        
-        # Get query embedding for the augmented query
-        query_embedding = await self.get_embedding(augmented_query)
+        # Get query embedding
+        query_embedding = await self.get_embedding(query)
         
         # First-layer routing: find the best group
-        best_group = None
-        best_similarity = -1
-        
-        for group_name, route in self.group_routes.items():
-            similarity = self.cosine_similarity(query_embedding, route.centroid)
-            logger.info(f"Group '{group_name}' similarity: {similarity:.4f}")
-            
-            if similarity > best_similarity:
-                best_similarity = similarity
-                best_group = group_name
+        best_group, group_similarity = self._find_best_match(
+            query_embedding, 
+            self.group_routes,
+            "group"
+        )
         
         if best_group is None:
             logger.warning("No matching group found")
             return await self.fallback_response(query)
         
-        logger.info(f"Selected group: {best_group} (similarity: {best_similarity:.4f})")
-        
         # Second-layer routing: find the best expert within the group
-        best_expert = None
-        best_similarity = -1
-        
         start_time = time.time()
-        for expert_name, route in self.expert_routes.get(best_group, {}).items():
-            similarity = self.cosine_similarity(query_embedding, route.centroid)
-            logger.info(f"Expert '{expert_name}' similarity: {similarity:.4f}")
-            
-            if similarity > best_similarity:
-                best_similarity = similarity
-                best_expert = expert_name
+        best_expert, expert_similarity = self._find_best_match(
+            query_embedding, 
+            self.expert_routes.get(best_group, {}),
+            "expert"
+        )
         
         if best_expert is None:
             logger.warning(f"No matching expert found in group {best_group}")
             return await self.fallback_response(query)
         
-        logger.info(f"Selected expert: {best_expert} (similarity: {best_similarity:.4f})")
-        # log info in milliseconds
         logger.info(f"Time taken for routing: {(time.time() - start_time) * 1000:.2f} ms")
         
-        # Get conversation history for the response
-        conversation_history = ""
-        if self.session_manager:
-            conversation_history = self.session_manager.get_formatted_history(user_id)
+        # # Get conversation history for the response
+        # conversation_history = ""
+        # if self.session_manager:
+        #     conversation_history = self.session_manager.get_formatted_history(user_id)
         
-        # Check if custom response function is registered
-        if best_expert in self.expert_responses:
-            # Use custom response function (Note: custom handlers would need to be updated 
-            # to use conversation history as well, but that's outside our scope here)
-            response = await self.expert_responses[best_expert](query)
-        else:
-            # Default RAG pipeline:
-            # 1. Retrieve relevant documents from ChromaDB
-            results = await self.db_handler.get_similar_documents(best_expert, query_embedding.tolist(), self.top_k)
-            
-            # 2. Extract documents
-            documents = results.get("documents", [])
-            
-            if not documents:
-                logger.warning(f"No documents found for expert {best_expert}")
-                response = await self.fallback_response(query)
-            else:
-                # 3. Generate response using LLM with conversation history
-                response = await generate_response(
-                    query=query, 
-                    context=documents,
-                    conversation_history=conversation_history,
-                    expert_name=best_expert, 
-                )
+        # Generate response using appropriate method
+        response, documents = await self._generate_expert_response(
+            query, 
+            best_expert, 
+            query_embedding, 
+            conversation_history="" # placeholder for conversation history
+        )
         
         # Record the interaction in the session manager
         if self.session_manager:
@@ -319,9 +268,77 @@ class MultiLayerRouter:
                 user_id=user_id, 
                 query=query, 
                 response=response, 
-                conversation_context=conversation_context,
+                conversation_context="", # placeholder for conversation context
                 documents=documents,
                 expert_name=best_expert,
-                )
+            )
         
         return response, best_expert
+
+    def _find_best_match(self, query_embedding, routes, entity_type="group"):
+        """
+        Helper method to find the best matching route based on cosine similarity.
+        
+        Args:
+            query_embedding: The query embedding vector
+            routes: Dictionary of routes to compare against
+            entity_type: Type of entity being matched (for logging)
+            
+        Returns:
+            Tuple of (best_match_name, best_similarity)
+        """
+        best_match = None
+        best_similarity = -1
+        
+        for name, route in routes.items():
+            similarity = self.cosine_similarity(query_embedding, route.centroid)
+            logger.info(f"{entity_type.title()} '{name}' similarity: {similarity:.4f}")
+            
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_match = name
+        
+        if best_match:
+            logger.info(f"Selected {entity_type}: {best_match} (similarity: {best_similarity:.4f})")
+            
+        return best_match, best_similarity
+
+    async def _generate_expert_response(self, query, expert_name, query_embedding, conversation_history):
+        """
+        Generate a response using either a custom expert function or the default RAG pipeline.
+        
+        Args:
+            query: The user query
+            expert_name: Name of the selected expert
+            query_embedding: The query embedding vector
+            conversation_history: Formatted conversation history
+            
+        Returns:
+            Tuple of (response_dict, documents)
+        """
+        # Check if custom response function is registered
+        if expert_name in self.expert_responses:
+            return await self.expert_responses[expert_name](query), []
+        
+        # Default RAG pipeline
+        results = await self.db_handler.get_similar_documents(
+            expert_name, 
+            query_embedding.tolist(), 
+            self.top_k
+        )
+        
+        documents = results.get("documents", [])
+        
+        if not documents:
+            logger.warning(f"No documents found for expert {expert_name}")
+            return await self.fallback_response(query), []
+        
+        # Generate response using LLM with conversation history
+        response = await generate_response(
+            query=query, 
+            context=documents,
+            conversation_history=conversation_history,
+            expert_name=expert_name, 
+        )
+        
+        return response, documents
